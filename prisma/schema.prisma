@@ -1,0 +1,142 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          Int       @id @default(autoincrement())
+  email       String    @unique
+  password    String
+  fullName    String?
+  firstName   String
+  lastName    String
+  phone       String    @unique
+  address     String?
+  role        String    @default("USER")
+  isVerified  Boolean   @default(false)
+  dateOfBirth DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  walletFundings    WalletFunding[]
+  wallet            Wallet?
+  airtimeTransactions AirtimeTransaction[]
+  dataTransactions    DataTransaction[]
+}
+
+enum AirtimeStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model AirtimeTransaction {
+  id                  Int           @id @default(autoincrement())
+  reference           String        @unique // our internal ref (TU-...)
+  safeHavenReference  String?       // reference returned by Safe Haven
+  serviceCategoryId   String        // Safe Haven network category _id
+  network             String        // human-readable: MTN, Airtel, Glo, 9mobile
+  phoneNumber         String        // recipient phone
+  amount              Int           // in kobo
+  status              AirtimeStatus @default(PENDING)
+  failureReason       String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  userId              Int
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("airtime_transactions")
+}
+
+model DataTransaction {
+  id                  Int           @id @default(autoincrement())
+  reference           String        @unique // our internal ref (DAT-...)
+  safeHavenReference  String?       // reference returned by Safe Haven
+  serviceCategoryId   String        // Safe Haven network category _id
+  bundleCode          String        // Safe Haven data plan bundleCode
+  network             String        // human-readable: MTN, Airtel, Glo, 9mobile
+  phoneNumber         String        // recipient phone
+  amount              Int           // in kobo
+  status              AirtimeStatus @default(PENDING)
+  failureReason       String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  userId              Int
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("data_transactions")
+}
+
+model AirtimePlan {
+  id          Int      @id @default(autoincrement())
+  name        String
+  provider    String
+  phoneNumber String
+  amount      Float
+  network     String
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("airtime_plans")
+}
+
+model Transaction {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  airtimePlanId  String
+  status         String
+  transactionRef String?
+  amount         Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("transactions")
+}
+
+model Wallet {
+  id                   Int      @id @default(autoincrement())
+  balance              Int      @default(0) // in kobo (smallest currency unit)
+  currency             String   @default("NGN")
+  // Safe Haven virtual account details
+  subAccountId         String?  // Safe Haven internal account _id
+  virtualAccountNumber String?  // The account number users send money to
+  virtualAccountBank   String?  @default("Safe Haven MFB")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  userId               Int      @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+enum FundingStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model WalletFunding {
+  id        Int           @id @default(autoincrement())
+  reference String        @unique
+  sessionId String?       @unique // Safe Haven NIBSS session ID for dedup
+  amount    Int // kobo, the amount WE asked for
+  status    FundingStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  paidAt    DateTime?
+  userId    Int
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
